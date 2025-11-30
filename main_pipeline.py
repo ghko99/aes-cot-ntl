@@ -1,6 +1,6 @@
 import argparse
 from modules.train_module import train_model
-from modules.inference_module import run_inference_mtl
+from modules.inference_module import run_inference
 from modules.evaluate_module import evaluate_results
 import os
 
@@ -25,10 +25,11 @@ if __name__ == "__main__":
     )
 
     # 2️⃣ Inference (best model already loaded)
-    csv_path = run_inference_mtl(
+    csv_path = run_inference(
         model=trainer.model,
         tokenizer=tokenizer,
         test_dataset=test_ds,
+        max_new_tokens=64,
         out_dir=output_dir
     )
 

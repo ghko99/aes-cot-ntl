@@ -75,6 +75,7 @@ def load_inference_model(adapter_dir, base_model_name="meta-llama/Llama-3.1-8B-I
     return model_lora
 
 
+
 # ======================================================
 # 추론 및 CSV 저장
 # ======================================================
@@ -192,7 +193,7 @@ def run_test_and_save_csv(
 
 
 @torch.inference_mode()
-def run_inference(model, tokenizer, test_dataset, out_dir: str):
+def run_inference(model, tokenizer, test_dataset, max_new_tokens , out_dir: str):
     """
     학습 완료된 model 그대로 사용
     """
@@ -204,8 +205,8 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
     max_seq_length = tokenizer.model_max_length
 
     fieldnames = [
-        "sample_idx", "gen_pos", "label", "gen_label",
-        "chosen_token", "chosen_token_id",
+        "sample_idx", "gen_pos", "label", "pred_even_tokens", 
+        "label_feedback", "gen_feedback", "chosen_token", "chosen_token_id", 
     ] + [f"prob_{i}" for i in range(1, 10)]
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
@@ -214,8 +215,10 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
 
         for idx, ex in enumerate(tqdm(test_dataset, desc="Running inference")):
             instruction = ex.get("instruction", "")
-            label = ex.get("label", ex.get("output", ""))
+            label = ex.get("score_output", "")
+            label = label.replace("\n### Score:\n", "")
 
+            label_feedback = ex.get("feedback_output", "").strip()
             enc = tokenizer(
                 instruction,
                 return_tensors="pt",
@@ -230,7 +233,7 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
             gen_out = model.generate(
                 input_ids=input_ids,
                 attention_mask=attn_mask,
-                max_new_tokens=16,
+                max_new_tokens=max_new_tokens,
                 do_sample=False,
                 temperature=0.0,
                 top_p=1.0,
@@ -246,11 +249,18 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
 
             even_tokens = [
                 tokenizer.decode([int(gen_ids[0, p])], skip_special_tokens=True)
-                for p in range(gen_len) if (p + 1) % 2 == 0
+                for p in range(16) if (p + 1) % 2 == 1
             ]
-            pred_even_tokens = "".join(even_tokens).strip()
+            pred_even_tokens = " ".join(even_tokens).strip()
+            gen_feedback = ""
 
-            for p in range(gen_len):
+            if gen_len > 16:
+                gen_feedback = tokenizer.decode(
+                    gen_ids[0, 16:],
+                    skip_special_tokens=True
+                ).strip()
+
+            for p in range(16):
                 logits = scores[p].squeeze(0)
                 probs = torch.softmax(logits, dim=-1)
                 chosen_id = int(gen_ids[0, p].item())
@@ -260,6 +270,8 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
                     "gen_pos": p + 1,
                     "label": label,
                     "pred_even_tokens": pred_even_tokens,
+                    "label_feedback": label_feedback,
+                    "gen_feedback": gen_feedback,
                     "chosen_token": chosen_tok,
                     "chosen_token_id": chosen_id,
                 }
@@ -268,7 +280,6 @@ def run_inference(model, tokenizer, test_dataset, out_dir: str):
                 writer.writerow(row)
     print(f"Inference complete. Results saved to {out_path}")
     return out_path
-
 
 class ScoreDelayStoppingCriteria(StoppingCriteria):
     def __init__(self, tokenizer, prompt_length, target_sequence="### Score:\n", delay_tokens=16):

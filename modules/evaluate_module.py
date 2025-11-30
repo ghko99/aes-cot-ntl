@@ -20,6 +20,9 @@ def evaluate_results(csv_path: str, save_dir: str):
 
     for i in tqdm(range(total_test), desc="Evaluating"):
         ce_results = df[df['sample_idx'] == i]
+        if ce_results.empty:
+            print(f"⚠️ Warning: No results found for sample_idx {i}. Skipping.")
+            continue
         label = [int(l) for l in ce_results['label'].values[0].split(" ")]
         first_pos = ce_results['gen_pos'].values[0]
         preds_t, preds_w = [], []

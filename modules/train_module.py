@@ -58,9 +58,9 @@ def train_model(baseline: bool = False, ntl_weight: float = 2.0, ratio: float = 
     init_wandb(baseline, ratio, ntl_weight, output_dir)
 
     # Dataset load (train, valid, test 동일한 비율)
-    train_ds = sample_ratio(load_dataset('json', data_files="./aes_dataset/train.jsonl")['train'], ratio)
-    valid_ds = sample_ratio(load_dataset('json', data_files="./aes_dataset/valid.jsonl")['train'], ratio)
-    test_ds  = sample_ratio(load_dataset('json', data_files="./aes_dataset/test.jsonl")['train'], ratio)
+    train_ds = sample_ratio(load_dataset('json', data_files="./aes_dataset/train_v1.jsonl")['train'], ratio)
+    valid_ds = sample_ratio(load_dataset('json', data_files="./aes_dataset/valid_v1.jsonl")['train'], ratio)
+    test_ds  = sample_ratio(load_dataset('json', data_files="./aes_dataset/test_v1.jsonl")['train'], ratio)
 
     tokenizer = AutoNumberTokenizer.from_pretrained(model_name, use_fast=True, trust_remote_code=True)
     if tokenizer.pad_token is None:
